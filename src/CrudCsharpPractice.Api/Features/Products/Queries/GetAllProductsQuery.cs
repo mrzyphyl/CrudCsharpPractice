@@ -1,5 +1,5 @@
 using CrudCsharpPractice.Api.Features.Products.DTOs;
-using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
 
 namespace CrudCsharpPractice.Api.Features.Products.Queries;
 

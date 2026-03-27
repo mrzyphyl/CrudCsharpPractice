@@ -2,7 +2,7 @@ using CrudCsharpPractice.Api.Features.Products.Commands;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Queries;
 using CrudCsharpPractice.Api.Features.Products.Services;
-using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
 using CrudCsharpPractice.Api.Features.Shared.Messaging;
 using CrudCsharpPractice.Api.Features.Shared.Middleware;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +16,7 @@ namespace CrudCsharpPractice.Api.Features.Products.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IRepository<Product> _repository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IProductMessagePublisher _messagePublisher;
     private readonly ICacheService _cacheService;
     private readonly IRabbitMqService _rabbitMqService;
@@ -24,12 +25,14 @@ public class ProductsController : ControllerBase
 
     public ProductsController(
         IRepository<Product> repository,
+        IUnitOfWork unitOfWork,
         IProductMessagePublisher messagePublisher,
         ICacheService cacheService,
         IRabbitMqService rabbitMqService,
         ILogger<ProductsController> logger)
     {
         _repository = repository;
+        _unitOfWork = unitOfWork;
         _messagePublisher = messagePublisher;
         _cacheService = cacheService;
         _rabbitMqService = rabbitMqService;
@@ -99,7 +102,7 @@ public class ProductsController : ControllerBase
         
         ValidateCreateDto(dto);
         
-        var command = new CreateProductCommand(_repository, _messagePublisher);
+        var command = new CreateProductCommand(_repository, _unitOfWork, _messagePublisher);
         var product = await command.ExecuteAsync(dto, cancellationToken);
         
         await InvalidateCacheAsync(product.Id, "created", cancellationToken);
@@ -126,7 +129,7 @@ public class ProductsController : ControllerBase
         
         ValidateUpdateDto(dto);
         
-        var command = new UpdateProductCommand(_repository, _messagePublisher);
+        var command = new UpdateProductCommand(_repository, _unitOfWork, _messagePublisher);
         var product = await command.ExecuteAsync(dto, cancellationToken);
         
         if (product == null)
@@ -149,7 +152,7 @@ public class ProductsController : ControllerBase
     {
         _logger.LogInformation("Deleting product with ID: {ProductId}", id);
         
-        var command = new DeleteProductCommand(_repository, _messagePublisher);
+        var command = new DeleteProductCommand(_repository, _unitOfWork, _messagePublisher);
         var deleted = await command.ExecuteAsync(id, cancellationToken);
         
         if (!deleted)

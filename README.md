@@ -1,9 +1,28 @@
 # CRUD C# Practice - Vertical Slice Architecture
 
-A modern .NET 10 Web API implementing **Vertical Slice Architecture** with CQRS, Redis caching, RabbitMQ messaging, and production-ready features.
+A modern .NET 10 Web API implementing **Vertical Slice Architecture** with CQRS, Repository Pattern, Unit of Work, Redis caching, RabbitMQ messaging, and production-ready features.
 
 ## Architecture Overview
 
+```
+crud-csharp-practice/
+├── src/CrudCsharpPractice.Api/
+│   ├── Features/
+│   │   ├── Products/
+│   │   │   ├── Commands/          # Write operations (Create, Update, Delete)
+│   │   │   ├── Queries/           # Read operations (GetAll, GetById)
+│   │   │   ├── Controllers/       # API endpoints
+│   │   │   ├── DTOs/              # Data transfer objects
+│   │   │   ├── Services/          # Repository & messaging
+│   │   │   └── Data/              # DbContext
+│   │   └── Shared/
+│   │       ├── Interfaces/        # Repository & Unit of Work interfaces
+│   │       ├── DependencyInjection/ # DI extensions
+│   │       ├── Configuration/     # Rate limiting, health checks
+│   │       ├── Messaging/         # RabbitMQ & Redis services
+│   │       └── Middleware/        # Global error handling
+│   └── Program.cs
+└── tests/CrudCsharpPractice.Tests/
 ```
 crud-csharp-practice/
 ├── src/CrudCsharpPractice.Api/
@@ -16,10 +35,11 @@ crud-csharp-practice/
 │   │   │   ├── Services/         # Repository & messaging
 │   │   │   └── Data/             # DbContext
 │   │   └── Shared/
+│   │       ├── Interfaces/         # Repository & Unit of Work
 │   │       ├── DependencyInjection/ # DI extensions
-│   │       ├── Configuration/    # Rate limiting, health checks
-│   │       ├── Messaging/        # RabbitMQ & Redis services
-│   │       └── Middleware/       # Global error handling
+│   │       ├── Configuration/     # Rate limiting, health checks
+│   │       ├── Messaging/         # RabbitMQ & Redis services
+│   │       └── Middleware/        # Global error handling
 │   └── Program.cs
 └── tests/CrudCsharpPractice.Tests/
 ```
@@ -29,6 +49,8 @@ crud-csharp-practice/
 | Feature | Implementation |
 |---------|---------------|
 | **Architecture** | Vertical Slice + CQRS |
+| **Repository Pattern** | Generic `IRepository<T>` interface |
+| **Unit of Work** | `IUnitOfWork` with transaction support |
 | **Database** | Entity Framework Core (InMemory/SQL Server) |
 | **Caching** | Redis Distributed Cache |
 | **Messaging** | RabbitMQ (Event-driven) |
@@ -37,6 +59,52 @@ crud-csharp-practice/
 | **Health Checks** | Self, Database, Redis |
 | **Error Handling** | Global exception handler |
 | **Testing** | xUnit + Moq (34 tests) |
+
+## Repository Pattern & Unit of Work
+
+### Generic Repository Interface
+
+```csharp
+public interface IRepository<T> where T : class
+{
+    Task<T?> GetByIdAsync<TId>(TId id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task AddAsync(T entity, CancellationToken cancellationToken = default);
+    Task UpdateAsync(T entity, CancellationToken cancellationToken = default);
+    Task<bool> DeleteAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull;
+    Task<bool> ExistsAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull;
+}
+```
+
+### Unit of Work Interface
+
+```csharp
+public interface IUnitOfWork : IDisposable
+{
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task BeginTransactionAsync(CancellationToken cancellationToken = default);
+    Task CommitTransactionAsync(CancellationToken cancellationToken = default);
+    Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
+    bool HasActiveTransaction { get; }
+}
+```
+
+### Implementation
+
+- **Location**: `Features/Shared/Interfaces/`
+- **Service Lifetime**: Scoped (via `[Scoped]` attribute)
+- **Transactions**: Write operations use `IUnitOfWork` to wrap operations in transactions with automatic rollback on failure
+
+### Transaction Flow (Write Operations)
+
+```
+BeginTransaction()
+    → Repository operations (Add/Update/Delete)
+    → SaveChanges()
+    → Message publishing (optional)
+CommitTransaction()
+    └── On error: RollbackTransaction() → throw ServiceUnavailableException
+```
 
 ## Request Flow
 

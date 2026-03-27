@@ -6,6 +6,7 @@ using CrudCsharpPractice.Api.Features.Products.Controllers;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Services;
 using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
 using CrudCsharpPractice.Api.Features.Shared.Messaging;
 using CrudCsharpPractice.Api.Features.Shared.Middleware;
 
@@ -14,6 +15,7 @@ namespace CrudCsharpPractice.Tests.Controllers;
 public class ProductsControllerTests
 {
     private readonly Mock<IRepository<Product>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly Mock<ICacheService> _cacheMock;
     private readonly Mock<IRabbitMqService> _rabbitMqMock;
@@ -23,6 +25,7 @@ public class ProductsControllerTests
     public ProductsControllerTests()
     {
         _repositoryMock = new Mock<IRepository<Product>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
         _publisherMock = new Mock<IProductMessagePublisher>();
         _cacheMock = new Mock<ICacheService>();
         _rabbitMqMock = new Mock<IRabbitMqService>();
@@ -30,6 +33,7 @@ public class ProductsControllerTests
 
         _controller = new ProductsController(
             _repositoryMock.Object,
+            _unitOfWorkMock.Object,
             _publisherMock.Object,
             _cacheMock.Object,
             _rabbitMqMock.Object,
@@ -103,17 +107,10 @@ public class ProductsControllerTests
     public async Task Create_WithValidData_ShouldReturnCreated()
     {
         var dto = new CreateProductDto("New Product", "Description", 99.99m, 10);
-        var createdProduct = new Product
-        {
-            Id = Guid.NewGuid(),
-            Name = dto.Name,
-            Description = dto.Description,
-            Price = dto.Price,
-            StockQuantity = dto.StockQuantity,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>(), default)).ReturnsAsync(createdProduct);
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(default)).ReturnsAsync(1);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>(), default));
 
         var result = await _controller.Create(dto, default);
 
@@ -155,6 +152,8 @@ public class ProductsControllerTests
     public async Task Delete_WhenNotFound_ShouldThrowNotFoundException()
     {
         var productId = Guid.NewGuid();
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.DeleteAsync(productId, default)).ReturnsAsync(false);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _controller.Delete(productId, default));
@@ -164,6 +163,9 @@ public class ProductsControllerTests
     public async Task Delete_WhenSuccessful_ShouldReturnDeleted_AndInvalidateCache()
     {
         var productId = Guid.NewGuid();
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(default)).ReturnsAsync(1);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.DeleteAsync(productId, default)).ReturnsAsync(true);
 
         var result = await _controller.Delete(productId, default);

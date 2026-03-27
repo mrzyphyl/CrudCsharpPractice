@@ -2,12 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using CrudCsharpPractice.Api.Features.Products;
 using CrudCsharpPractice.Api.Features.Products.Data;
 using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
 
 namespace CrudCsharpPractice.Tests.Services;
 
 public class ProductRepositoryTests : IDisposable
 {
     private readonly AppDbContext _context;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly Repository<Product> _repository;
 
     public ProductRepositoryTests()
@@ -17,12 +19,13 @@ public class ProductRepositoryTests : IDisposable
             .Options;
 
         _context = new AppDbContext(options);
-        _repository = new Repository<Product>(_context);
+        _unitOfWork = new UnitOfWork(_context);
+        _repository = new Repository<Product>(_context, _unitOfWork);
     }
 
     public void Dispose()
     {
-        _context.Dispose();
+        _unitOfWork.Dispose();
     }
 
     [Fact]
@@ -39,8 +42,12 @@ public class ProductRepositoryTests : IDisposable
             UpdatedAt = DateTime.UtcNow
         };
 
-        var result = await _repository.AddAsync(product);
+        await _repository.AddAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
+        var result = await _repository.GetByIdAsync(product.Id);
+
+        Assert.NotNull(result);
         Assert.Equal("Test Product", result.Name);
     }
 
@@ -58,6 +65,7 @@ public class ProductRepositoryTests : IDisposable
             UpdatedAt = DateTime.UtcNow
         };
         await _repository.AddAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
         var result = await _repository.GetByIdAsync(product.Id);
 
@@ -78,8 +86,11 @@ public class ProductRepositoryTests : IDisposable
     public async Task GetAllAsync_ShouldReturnAllProducts()
     {
         await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 1", Price = 10m, StockQuantity = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _unitOfWork.SaveChangesAsync();
         await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 2", Price = 20m, StockQuantity = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _unitOfWork.SaveChangesAsync();
         await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 3", Price = 30m, StockQuantity = 3, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _unitOfWork.SaveChangesAsync();
 
         var result = await _repository.GetAllAsync();
 
@@ -89,7 +100,7 @@ public class ProductRepositoryTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ShouldUpdateProduct()
     {
-        var product = await _repository.AddAsync(new Product
+        var product = new Product
         {
             Id = Guid.NewGuid(),
             Name = "Original Name",
@@ -97,18 +108,24 @@ public class ProductRepositoryTests : IDisposable
             StockQuantity = 5,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
-        });
+        };
+        await _repository.AddAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
         product.Name = "Updated Name";
-        var result = await _repository.UpdateAsync(product);
+        await _repository.UpdateAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
+        var result = await _repository.GetByIdAsync(product.Id);
+
+        Assert.NotNull(result);
         Assert.Equal("Updated Name", result.Name);
     }
 
     [Fact]
     public async Task DeleteAsync_WhenProductExists_ShouldReturnTrue_AndRemoveProduct()
     {
-        var product = await _repository.AddAsync(new Product
+        var product = new Product
         {
             Id = Guid.NewGuid(),
             Name = "To Delete",
@@ -116,9 +133,12 @@ public class ProductRepositoryTests : IDisposable
             StockQuantity = 1,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
-        });
+        };
+        await _repository.AddAsync(product);
+        await _unitOfWork.SaveChangesAsync();
 
         var result = await _repository.DeleteAsync(product.Id);
+        await _unitOfWork.SaveChangesAsync();
 
         Assert.True(result);
         Assert.Null(await _repository.GetByIdAsync(product.Id));

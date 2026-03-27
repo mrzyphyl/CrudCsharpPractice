@@ -3,21 +3,24 @@ using CrudCsharpPractice.Api.Features.Products;
 using CrudCsharpPractice.Api.Features.Products.Commands;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Services;
-using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
+using CrudCsharpPractice.Api.Features.Shared.Middleware;
 
 namespace CrudCsharpPractice.Tests.Commands;
 
 public class CreateProductCommandTests
 {
     private readonly Mock<IRepository<Product>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly CreateProductCommand _command;
 
     public CreateProductCommandTests()
     {
         _repositoryMock = new Mock<IRepository<Product>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
         _publisherMock = new Mock<IProductMessagePublisher>();
-        _command = new CreateProductCommand(_repositoryMock.Object, _publisherMock.Object);
+        _command = new CreateProductCommand(_repositoryMock.Object, _unitOfWorkMock.Object, _publisherMock.Object);
     }
 
     [Fact]
@@ -35,8 +38,11 @@ public class CreateProductCommandTests
             UpdatedAt = DateTime.UtcNow
         };
 
-        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>(), default))
-            .ReturnsAsync(createdProduct);
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>(), default));
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(default)).ReturnsAsync(1);
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(default)).Returns(Task.CompletedTask);
         _publisherMock.Setup(p => p.PublishProductCreatedAsync(It.IsAny<Guid>(), It.IsAny<string>(), default))
             .Returns(Task.CompletedTask);
 
@@ -45,32 +51,36 @@ public class CreateProductCommandTests
         Assert.Equal(dto.Name, result.Name);
         Assert.Equal(dto.Price, result.Price);
         _repositoryMock.Verify(r => r.AddAsync(It.IsAny<Product>(), default), Times.Once);
-        _publisherMock.Verify(p => p.PublishProductCreatedAsync(createdProduct.Id, createdProduct.Name, default), Times.Once);
+        _publisherMock.Verify(p => p.PublishProductCreatedAsync(It.IsAny<Guid>(), It.IsAny<string>(), default), Times.Once);
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenRepositoryFails_ShouldNotPublishMessage()
+    public async Task ExecuteAsync_WhenRepositoryFails_ShouldRollback()
     {
         var dto = new CreateProductDto("Test", "Desc", 10m, 1);
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>(), default))
             .ThrowsAsync(new Exception("Database error"));
 
-        await Assert.ThrowsAsync<Exception>(() => _command.ExecuteAsync(dto));
-        _publisherMock.Verify(p => p.PublishProductCreatedAsync(It.IsAny<Guid>(), It.IsAny<string>(), default), Times.Never);
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => _command.ExecuteAsync(dto));
+        _unitOfWorkMock.Verify(u => u.RollbackTransactionAsync(default), Times.Once);
     }
 }
 
 public class UpdateProductCommandTests
 {
     private readonly Mock<IRepository<Product>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly UpdateProductCommand _command;
 
     public UpdateProductCommandTests()
     {
         _repositoryMock = new Mock<IRepository<Product>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
         _publisherMock = new Mock<IProductMessagePublisher>();
-        _command = new UpdateProductCommand(_repositoryMock.Object, _publisherMock.Object);
+        _command = new UpdateProductCommand(_repositoryMock.Object, _unitOfWorkMock.Object, _publisherMock.Object);
     }
 
     [Fact]
@@ -85,17 +95,13 @@ public class UpdateProductCommandTests
             StockQuantity = 5
         };
         var dto = new UpdateProductDto(productId, "Updated", "New Desc", 20m, 10);
-        var updatedProduct = new Product
-        {
-            Id = productId,
-            Name = "Updated",
-            Description = "New Desc",
-            Price = 20m,
-            StockQuantity = 10
-        };
 
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(default)).ReturnsAsync(1);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.GetByIdAsync(productId, default)).ReturnsAsync(existingProduct);
-        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Product>(), default)).ReturnsAsync(updatedProduct);
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Product>(), default));
         _publisherMock.Setup(p => p.PublishProductUpdatedAsync(It.IsAny<Guid>(), It.IsAny<string>(), default))
             .Returns(Task.CompletedTask);
 
@@ -110,6 +116,8 @@ public class UpdateProductCommandTests
     public async Task ExecuteAsync_WhenProductDoesNotExist_ShouldReturnNull()
     {
         var dto = new UpdateProductDto(Guid.NewGuid(), "Updated", "Desc", 20m, 10);
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Product?)null);
 
         var result = await _command.ExecuteAsync(dto);
@@ -122,20 +130,26 @@ public class UpdateProductCommandTests
 public class DeleteProductCommandTests
 {
     private readonly Mock<IRepository<Product>> _repositoryMock;
+    private readonly Mock<IUnitOfWork> _unitOfWorkMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly DeleteProductCommand _command;
 
     public DeleteProductCommandTests()
     {
         _repositoryMock = new Mock<IRepository<Product>>();
+        _unitOfWorkMock = new Mock<IUnitOfWork>();
         _publisherMock = new Mock<IProductMessagePublisher>();
-        _command = new DeleteProductCommand(_repositoryMock.Object, _publisherMock.Object);
+        _command = new DeleteProductCommand(_repositoryMock.Object, _unitOfWorkMock.Object, _publisherMock.Object);
     }
 
     [Fact]
     public async Task ExecuteAsync_WhenProductDeleted_ShouldPublishMessage()
     {
         var productId = Guid.NewGuid();
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.SaveChangesAsync(default)).ReturnsAsync(1);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.RollbackTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.DeleteAsync(productId, default)).ReturnsAsync(true);
         _publisherMock.Setup(p => p.PublishProductDeletedAsync(productId, default))
             .Returns(Task.CompletedTask);
@@ -150,6 +164,8 @@ public class DeleteProductCommandTests
     public async Task ExecuteAsync_WhenProductDoesNotExist_ShouldReturnFalse_AndNotPublish()
     {
         var productId = Guid.NewGuid();
+        _unitOfWorkMock.Setup(u => u.BeginTransactionAsync(default)).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.CommitTransactionAsync(default)).Returns(Task.CompletedTask);
         _repositoryMock.Setup(r => r.DeleteAsync(productId, default)).ReturnsAsync(false);
 
         var result = await _command.ExecuteAsync(productId);

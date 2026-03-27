@@ -1,28 +1,22 @@
-using Microsoft.EntityFrameworkCore;
 using CrudCsharpPractice.Api.Features.Products.Data;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
+using CrudCsharpPractice.Api.Features.Shared.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
-namespace CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
-
-public interface IRepository<T> where T : class
-{
-    Task<T?> GetByIdAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull;
-    Task<IEnumerable<T>> GetAllAsync(CancellationToken cancellationToken = default);
-    Task<T> AddAsync(T entity, CancellationToken cancellationToken = default);
-    Task<T> UpdateAsync(T entity, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull;
-    Task<bool> ExistsAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull;
-}
+namespace CrudCsharpPractice.Api.Features.Shared.Interfaces;
 
 [Scoped]
 public class Repository<T> : IRepository<T> where T : class
 {
     protected readonly AppDbContext _context;
     protected readonly DbSet<T> _dbSet;
+    protected readonly IUnitOfWork _unitOfWork;
 
-    public Repository(AppDbContext context)
+    public Repository(AppDbContext context, IUnitOfWork unitOfWork)
     {
         _context = context;
         _dbSet = context.Set<T>();
+        _unitOfWork = unitOfWork;
     }
 
     public virtual async Task<T?> GetByIdAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull
@@ -35,18 +29,14 @@ public class Repository<T> : IRepository<T> where T : class
         return await _dbSet.ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<T> AddAsync(T entity, CancellationToken cancellationToken = default)
+    public virtual async Task AddAsync(T entity, CancellationToken cancellationToken = default)
     {
         await _dbSet.AddAsync(entity, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        return entity;
     }
 
-    public virtual async Task<T> UpdateAsync(T entity, CancellationToken cancellationToken = default)
+    public virtual async Task UpdateAsync(T entity, CancellationToken cancellationToken = default)
     {
         _dbSet.Update(entity);
-        await _context.SaveChangesAsync(cancellationToken);
-        return entity;
     }
 
     public virtual async Task<bool> DeleteAsync<TId>(TId id, CancellationToken cancellationToken = default) where TId : notnull
@@ -55,7 +45,6 @@ public class Repository<T> : IRepository<T> where T : class
         if (entity == null) return false;
 
         _dbSet.Remove(entity);
-        await _context.SaveChangesAsync(cancellationToken);
         return true;
     }
 
