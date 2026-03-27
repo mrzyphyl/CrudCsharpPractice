@@ -13,13 +13,13 @@ crud-csharp-practice/
 │   │   │   ├── Queries/          # Read operations (GetAll, GetById)
 │   │   │   ├── Controllers/      # API endpoints
 │   │   │   ├── DTOs/             # Data transfer objects
-│   │   │   ├── Services/          # Repository & messaging
-│   │   │   └── Data/              # DbContext
+│   │   │   ├── Services/         # Repository & messaging
+│   │   │   └── Data/             # DbContext
 │   │   └── Shared/
 │   │       ├── DependencyInjection/ # DI extensions
-│   │       ├── Configuration/      # Rate limiting, health checks
-│   │       ├── Messaging/          # RabbitMQ & Redis services
-│   │       └── Middleware/         # Global error handling
+│   │       ├── Configuration/    # Rate limiting, health checks
+│   │       ├── Messaging/        # RabbitMQ & Redis services
+│   │       └── Middleware/       # Global error handling
 │   └── Program.cs
 └── tests/CrudCsharpPractice.Tests/
 ```
@@ -33,7 +33,7 @@ crud-csharp-practice/
 | **Caching** | Redis Distributed Cache |
 | **Messaging** | RabbitMQ (Event-driven) |
 | **Cache Invalidation** | Event-driven via RabbitMQ |
-| **Rate Limiting** | 100 req/sec per IP |
+| **Rate Limiting** | Nginx (100 req/s) + App (100 req/s per IP) |
 | **Health Checks** | Self, Database, Redis |
 | **Error Handling** | Global exception handler |
 | **Testing** | xUnit + Moq (34 tests) |
@@ -41,52 +41,92 @@ crud-csharp-practice/
 ## Request Flow
 
 ### Read Operations (Cache-Aside Pattern)
+
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  GET /api/products/123                                            │
-│         │                                                         │
-│         ▼                                                         │
-│  ┌─────────────┐     HIT     ┌─────────┐                         │
-│  │ Controller  │◄───────────►│  Redis  │ ◄── Return instantly   │
-│  └─────────────┘             └─────────┘                         │
-│         │                                                         │
-│         │ MISS                                                     │
-│         ▼                                                         │
-│  ┌─────────────┐     READ    ┌─────────────┐                     │
-│  │ Repository  │◄───────────│   Database  │                     │
-│  └─────────────┘            └─────────────┘                     │
-│         │                                                         │
-│         │ Store in cache (30s TTL)                                │
-│         ▼                                                         │
-│  ┌─────────┐                                                      │
-│  │  Redis  │                                                      │
-│  └─────────┘                                                      │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  GET /api/products/123                                          │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                               │
+│  │   Nginx     │ ◄── Rate Limit (100 req/s)                   │
+│  └──────┬──────┘                                               │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐     HIT     ┌─────────┐                      │
+│  │ Controller  │◄───────────►│  Redis  │ ◄── Return instantly │
+│  └──────┬──────┘             └─────────┘                      │
+│         │                                                       │
+│         │ MISS                                                   │
+│         ▼                                                       │
+│  ┌─────────────┐     READ    ┌─────────────┐                  │
+│  │ Repository  │◄───────────►│  Database   │                  │
+│  └─────────────┘             └─────────────┘                  │
+│         │                                                       │
+│         │ Store in cache (30s TTL)                              │
+│         ▼                                                       │
+│  ┌─────────────┐                                               │
+│  │    Redis    │                                               │
+│  └─────────────┘                                               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Write Operations (Event-Driven Cache Invalidation)
+
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  POST /api/products                                                │
-│         │                                                         │
-│         ▼                                                         │
-│  ┌─────────────┐     WRITE    ┌─────────────┐                     │
-│  │ Controller  │────────────►│  Database   │                     │
-│  └─────────────┘            └─────────────┘                     │
-│         │                                                         │
-│         │ Publish "product.created"                               │
-│         ▼                                                         │
-│  ┌─────────────────┐                                              │
-│  │    RabbitMQ     │ ◄── All instances subscribe                 │
-│  │ (cache.inv.)    │                                              │
-│  └─────────────────┘                                              │
-│         │                                                         │
-│         │ For each instance:                                       │
-│         ▼                                                         │
-│  ┌─────────────┐     DELETE   ┌─────────┐                         │
-│  │  Consumer   │────────────►│  Redis  │ ◄── Evict "products:*" │
-│  └─────────────┘             └─────────┘                         │
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  POST /api/products                                              │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐                                               │
+│  │   Nginx     │ ◄── Rate Limit (100 req/s)                   │
+│  └──────┬──────┘                                               │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌─────────────┐     WRITE    ┌─────────────┐                 │
+│  │ Controller  │──────────────►│  Database   │                 │
+│  └──────┬──────┘               └─────────────┘                 │
+│         │                                                       │
+│         │ Publish "product.created"                              │
+│         ▼                                                       │
+│  ┌─────────────────┐                                            │
+│  │    RabbitMQ     │ ◄── All instances subscribe              │
+│  │ (cache.inv.)    │                                            │
+│  └────────┬────────┘                                            │
+│           │                                                     │
+│           │ For each instance:                                  │
+│           ▼                                                     │
+│  ┌─────────────┐     DELETE   ┌─────────┐                      │
+│  │  Consumer   │──────────────►│  Redis  │ ◄── Evict cache   │
+│  └─────────────┘               └─────────┘                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Rate Limiting (Two-Layer Protection)
+
+### Layer 1: Nginx (Edge)
+```nginx
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+location / {
+    limit_req zone=api_limit burst=20 nodelay;
+}
+```
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| Rate | 100r/s | Requests per second |
+| Burst | 20 | Allow burst of 20 requests |
+| Zone | 10m | Memory for tracking |
+
+### Layer 2: Application (ASP.NET Core)
+```csharp
+options.AddPolicy("fixed", context =>
+    RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress,
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 100,
+            Window = TimeSpan.FromSeconds(1)
+        }));
 ```
 
 ## API Endpoints
@@ -182,30 +222,34 @@ docker-compose up --build
 
 ## Load Balancing Setup
 
-The project includes Nginx configuration for horizontal scaling:
+```
+                         ┌─────────────┐
+                         │   Nginx     │
+                         │  (LB + RL)  │
+                         └──────┬──────┘
+                                │
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+           ▼                    ▼                    ▼
+     ┌──────────┐        ┌──────────┐        ┌──────────┐
+     │  API-1   │        │  API-2   │        │  API-3   │
+     │  :8080   │        │  :8081   │        │  :8082   │
+     └────┬─────┘        └────┬─────┘        └────┬─────┘
+          │                    │                    │
+          └────────────────────┼────────────────────┘
+                               │
+                   ┌───────────┴───────────┐
+                   ▼                       ▼
+             ┌─────────┐            ┌─────────┐
+             │  Redis  │            │RabbitMQ │
+             └─────────┘            └─────────┘
+```
 
-```
-                    ┌─────────────┐
-                    │   Nginx     │
-                    │ (Load Bal.) │
-                    └──────┬──────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-          ▼                ▼                ▼
-    ┌──────────┐    ┌──────────┐    ┌──────────┐
-    │  API-1   │    │  API-2   │    │  API-3   │
-    │ :8080    │    │ :8081    │    │ :8082    │
-    └────┬─────┘    └────┬─────┘    └────┬─────┘
-         │                │                │
-         └────────────────┼────────────────┘
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-        ┌─────────┐            ┌─────────┐
-        │  Redis  │            │RabbitMQ │
-        └─────────┘            └─────────┘
-```
+**Nginx Features:**
+- Load Balancing (least_conn)
+- Rate Limiting (100 req/s)
+- Response Caching (30s for products)
+- Health Check Routing
 
 ## Project Structure by Feature
 
@@ -240,17 +284,26 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ### For Millions of Requests/Day
 
-1. **Redis Cache** - Serves 80% of read requests instantly
-2. **Event-Driven Invalidation** - All instances stay in sync
-3. **Database Indexes** - Fast lookups on cache misses
-4. **Rate Limiting** - Protects against abuse
-5. **Horizontal Scaling** - Run multiple instances via Docker/Nginx
+| Optimization | Benefit |
+|-------------|---------|
+| **Nginx Rate Limiting** | Blocks excess traffic before hitting app |
+| **App Rate Limiting** | Per-instance protection |
+| **Redis Cache** | Serves 80% of reads instantly |
+| **Event-Driven Invalidation** | All instances stay in sync |
+| **Database Indexes** | Fast lookups on cache misses |
+| **Horizontal Scaling** | Run multiple instances via Docker/Nginx |
 
 ### Cache Key Patterns
 ```
 product:{id}      → Single product
-products:all      → All products list
+products:all       → All products list
 ```
+
+### Cache TTL
+| Cache Type | TTL | Invalidation |
+|------------|-----|--------------|
+| Redis (Application) | 30s | Event-driven |
+| Nginx Response | 30s | TTL-based |
 
 ## Custom Exceptions
 
