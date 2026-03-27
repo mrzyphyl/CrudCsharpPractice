@@ -24,25 +24,6 @@ crud-csharp-practice/
 │   └── Program.cs
 └── tests/CrudCsharpPractice.Tests/
 ```
-crud-csharp-practice/
-├── src/CrudCsharpPractice.Api/
-│   ├── Features/
-│   │   ├── Products/
-│   │   │   ├── Commands/          # Write operations (Create, Update, Delete)
-│   │   │   ├── Queries/          # Read operations (GetAll, GetById)
-│   │   │   ├── Controllers/      # API endpoints
-│   │   │   ├── DTOs/             # Data transfer objects
-│   │   │   ├── Services/         # Repository & messaging
-│   │   │   └── Data/             # DbContext
-│   │   └── Shared/
-│   │       ├── Interfaces/         # Repository & Unit of Work
-│   │       ├── DependencyInjection/ # DI extensions
-│   │       ├── Configuration/     # Rate limiting, health checks
-│   │       ├── Messaging/         # RabbitMQ & Redis services
-│   │       └── Middleware/        # Global error handling
-│   └── Program.cs
-└── tests/CrudCsharpPractice.Tests/
-```
 
 ## Features
 
