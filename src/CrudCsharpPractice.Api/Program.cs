@@ -1,3 +1,4 @@
+using System.Reflection;
 using CrudCsharpPractice.Api.Features.Shared.Configuration;
 using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using CrudCsharpPractice.Api.Features.Shared.Middleware;
@@ -10,8 +11,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services
     .AddDatabase(builder.Configuration)
     .AddCaching(builder.Configuration)
-    .AddMessaging()
-    .AddProductServices();
+    .AddServicesFromAttributes(Assembly.GetExecutingAssembly());
 
 builder.Services
     .AddRateLimiting()

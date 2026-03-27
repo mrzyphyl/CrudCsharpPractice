@@ -5,6 +5,7 @@ using CrudCsharpPractice.Api.Features.Products;
 using CrudCsharpPractice.Api.Features.Products.Controllers;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using CrudCsharpPractice.Api.Features.Shared.Messaging;
 using CrudCsharpPractice.Api.Features.Shared.Middleware;
 
@@ -12,7 +13,7 @@ namespace CrudCsharpPractice.Tests.Controllers;
 
 public class ProductsControllerTests
 {
-    private readonly Mock<IProductRepository> _repositoryMock;
+    private readonly Mock<IRepository<Product>> _repositoryMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly Mock<ICacheService> _cacheMock;
     private readonly Mock<IRabbitMqService> _rabbitMqMock;
@@ -21,7 +22,7 @@ public class ProductsControllerTests
 
     public ProductsControllerTests()
     {
-        _repositoryMock = new Mock<IProductRepository>();
+        _repositoryMock = new Mock<IRepository<Product>>();
         _publisherMock = new Mock<IProductMessagePublisher>();
         _cacheMock = new Mock<ICacheService>();
         _rabbitMqMock = new Mock<IRabbitMqService>();

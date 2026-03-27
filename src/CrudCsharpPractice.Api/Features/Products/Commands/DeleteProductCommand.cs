@@ -1,13 +1,14 @@
 using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
 namespace CrudCsharpPractice.Api.Features.Products.Commands;
 
 public class DeleteProductCommand
 {
-    private readonly IProductRepository _repository;
+    private readonly IRepository<Product> _repository;
     private readonly IProductMessagePublisher _messagePublisher;
 
-    public DeleteProductCommand(IProductRepository repository, IProductMessagePublisher messagePublisher)
+    public DeleteProductCommand(IRepository<Product> repository, IProductMessagePublisher messagePublisher)
     {
         _repository = repository;
         _messagePublisher = messagePublisher;

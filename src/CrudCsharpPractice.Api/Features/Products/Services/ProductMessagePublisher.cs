@@ -1,3 +1,4 @@
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using CrudCsharpPractice.Api.Features.Shared.Messaging;
 
 namespace CrudCsharpPractice.Api.Features.Products.Services;
@@ -9,6 +10,7 @@ public interface IProductMessagePublisher
     Task PublishProductDeletedAsync(Guid productId, CancellationToken cancellationToken = default);
 }
 
+[Scoped]
 public class ProductMessagePublisher : IProductMessagePublisher
 {
     private readonly IRabbitMqService _rabbitMqService;

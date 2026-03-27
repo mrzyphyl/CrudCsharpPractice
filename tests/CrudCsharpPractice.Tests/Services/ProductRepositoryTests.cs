@@ -1,14 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using CrudCsharpPractice.Api.Features.Products;
 using CrudCsharpPractice.Api.Features.Products.Data;
-using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
 namespace CrudCsharpPractice.Tests.Services;
 
 public class ProductRepositoryTests : IDisposable
 {
     private readonly AppDbContext _context;
-    private readonly ProductRepository _repository;
+    private readonly Repository<Product> _repository;
 
     public ProductRepositoryTests()
     {
@@ -17,7 +17,7 @@ public class ProductRepositoryTests : IDisposable
             .Options;
 
         _context = new AppDbContext(options);
-        _repository = new ProductRepository(_context);
+        _repository = new Repository<Product>(_context);
     }
 
     public void Dispose()
@@ -26,21 +26,21 @@ public class ProductRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task AddAsync_ShouldCreateProduct_WithGeneratedIdAndTimestamps()
+    public async Task AddAsync_ShouldCreateProduct()
     {
         var product = new Product
         {
+            Id = Guid.NewGuid(),
             Name = "Test Product",
             Description = "Test Description",
             Price = 99.99m,
-            StockQuantity = 10
+            StockQuantity = 10,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         var result = await _repository.AddAsync(product);
 
-        Assert.NotEqual(Guid.Empty, result.Id);
-        Assert.NotEqual(default, result.CreatedAt);
-        Assert.NotEqual(default, result.UpdatedAt);
         Assert.Equal("Test Product", result.Name);
     }
 
@@ -49,17 +49,20 @@ public class ProductRepositoryTests : IDisposable
     {
         var product = new Product
         {
+            Id = Guid.NewGuid(),
             Name = "Existing Product",
             Description = "Description",
             Price = 50m,
-            StockQuantity = 5
+            StockQuantity = 5,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
-        var created = await _repository.AddAsync(product);
+        await _repository.AddAsync(product);
 
-        var result = await _repository.GetByIdAsync(created.Id);
+        var result = await _repository.GetByIdAsync(product.Id);
 
         Assert.NotNull(result);
-        Assert.Equal(created.Id, result.Id);
+        Assert.Equal(product.Id, result.Id);
         Assert.Equal("Existing Product", result.Name);
     }
 
@@ -74,9 +77,9 @@ public class ProductRepositoryTests : IDisposable
     [Fact]
     public async Task GetAllAsync_ShouldReturnAllProducts()
     {
-        await _repository.AddAsync(new Product { Name = "Product 1", Price = 10m, StockQuantity = 1 });
-        await _repository.AddAsync(new Product { Name = "Product 2", Price = 20m, StockQuantity = 2 });
-        await _repository.AddAsync(new Product { Name = "Product 3", Price = 30m, StockQuantity = 3 });
+        await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 1", Price = 10m, StockQuantity = 1, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 2", Price = 20m, StockQuantity = 2, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
+        await _repository.AddAsync(new Product { Id = Guid.NewGuid(), Name = "Product 3", Price = 30m, StockQuantity = 3, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow });
 
         var result = await _repository.GetAllAsync();
 
@@ -84,22 +87,22 @@ public class ProductRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateAsync_ShouldUpdateProduct_AndSetUpdatedAt()
+    public async Task UpdateAsync_ShouldUpdateProduct()
     {
         var product = await _repository.AddAsync(new Product
         {
+            Id = Guid.NewGuid(),
             Name = "Original Name",
             Price = 10m,
-            StockQuantity = 5
+            StockQuantity = 5,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         });
-        var originalUpdatedAt = product.UpdatedAt;
 
-        await Task.Delay(10);
         product.Name = "Updated Name";
         var result = await _repository.UpdateAsync(product);
 
         Assert.Equal("Updated Name", result.Name);
-        Assert.True(result.UpdatedAt >= originalUpdatedAt);
     }
 
     [Fact]
@@ -107,9 +110,12 @@ public class ProductRepositoryTests : IDisposable
     {
         var product = await _repository.AddAsync(new Product
         {
+            Id = Guid.NewGuid(),
             Name = "To Delete",
             Price = 10m,
-            StockQuantity = 1
+            StockQuantity = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         });
 
         var result = await _repository.DeleteAsync(product.Id);

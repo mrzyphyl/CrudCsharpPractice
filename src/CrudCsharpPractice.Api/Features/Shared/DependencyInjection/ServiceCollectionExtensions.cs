@@ -1,8 +1,6 @@
+using System.Reflection;
 using CrudCsharpPractice.Api.Features.Products.Data;
-using CrudCsharpPractice.Api.Features.Products.Services;
-using CrudCsharpPractice.Api.Features.Shared.Messaging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 
 namespace CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
@@ -24,24 +22,12 @@ public static class ServiceCollectionExtensions
             options.InstanceName = "CrudCsharpPractice:";
         });
 
-        services.AddSingleton<ICacheService, RedisCacheService>();
-
         return services;
     }
 
-    public static IServiceCollection AddMessaging(this IServiceCollection services)
+    public static IServiceCollection AddProductServices(this IServiceCollection services, Assembly assembly)
     {
-        services.AddSingleton<IRabbitMqService, RabbitMqService>();
-        services.AddHostedService<CacheInvalidationConsumer>();
-
-        return services;
-    }
-
-    public static IServiceCollection AddProductServices(this IServiceCollection services)
-    {
-        services.AddScoped<IProductRepository, ProductRepository>();
-        services.AddScoped<IProductMessagePublisher, ProductMessagePublisher>();
-
+        services.AddServicesFromAttributes(assembly);
         return services;
     }
 }

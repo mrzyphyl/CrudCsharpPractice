@@ -2,6 +2,7 @@ using CrudCsharpPractice.Api.Features.Products.Commands;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Queries;
 using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using CrudCsharpPractice.Api.Features.Shared.Messaging;
 using CrudCsharpPractice.Api.Features.Shared.Middleware;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +15,7 @@ namespace CrudCsharpPractice.Api.Features.Products.Controllers;
 [Produces("application/json")]
 public class ProductsController : ControllerBase
 {
-    private readonly IProductRepository _repository;
+    private readonly IRepository<Product> _repository;
     private readonly IProductMessagePublisher _messagePublisher;
     private readonly ICacheService _cacheService;
     private readonly IRabbitMqService _rabbitMqService;
@@ -22,7 +23,7 @@ public class ProductsController : ControllerBase
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
 
     public ProductsController(
-        IProductRepository repository,
+        IRepository<Product> repository,
         IProductMessagePublisher messagePublisher,
         ICacheService cacheService,
         IRabbitMqService rabbitMqService,

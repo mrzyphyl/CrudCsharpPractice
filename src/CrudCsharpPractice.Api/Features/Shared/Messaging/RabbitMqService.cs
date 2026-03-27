@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using RabbitMQ.Client;
 
 namespace CrudCsharpPractice.Api.Features.Shared.Messaging;
@@ -9,6 +10,7 @@ public interface IRabbitMqService : IAsyncDisposable
     Task PublishMessageAsync(string exchange, string routingKey, object message, CancellationToken cancellationToken = default);
 }
 
+[Singleton]
 public class RabbitMqService : IRabbitMqService
 {
     private readonly IConnection _connection;

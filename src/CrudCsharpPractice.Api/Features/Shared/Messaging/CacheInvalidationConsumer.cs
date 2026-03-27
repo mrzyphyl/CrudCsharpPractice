@@ -1,10 +1,12 @@
 using System.Text;
 using System.Text.Json;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 namespace CrudCsharpPractice.Api.Features.Shared.Messaging;
 
+[Singleton]
 public class CacheInvalidationConsumer : BackgroundService
 {
     private readonly IConnection _connection;

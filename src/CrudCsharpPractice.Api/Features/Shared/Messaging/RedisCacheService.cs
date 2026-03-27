@@ -1,3 +1,4 @@
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace CrudCsharpPractice.Api.Features.Shared.Messaging;
@@ -10,6 +11,7 @@ public interface ICacheService
     Task RemoveByPatternAsync(string pattern, CancellationToken cancellationToken = default);
 }
 
+[Singleton]
 public class RedisCacheService : ICacheService
 {
     private readonly IDistributedCache _cache;

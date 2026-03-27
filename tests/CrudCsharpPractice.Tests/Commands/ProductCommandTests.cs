@@ -3,18 +3,19 @@ using CrudCsharpPractice.Api.Features.Products;
 using CrudCsharpPractice.Api.Features.Products.Commands;
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
 namespace CrudCsharpPractice.Tests.Commands;
 
 public class CreateProductCommandTests
 {
-    private readonly Mock<IProductRepository> _repositoryMock;
+    private readonly Mock<IRepository<Product>> _repositoryMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly CreateProductCommand _command;
 
     public CreateProductCommandTests()
     {
-        _repositoryMock = new Mock<IProductRepository>();
+        _repositoryMock = new Mock<IRepository<Product>>();
         _publisherMock = new Mock<IProductMessagePublisher>();
         _command = new CreateProductCommand(_repositoryMock.Object, _publisherMock.Object);
     }
@@ -61,13 +62,13 @@ public class CreateProductCommandTests
 
 public class UpdateProductCommandTests
 {
-    private readonly Mock<IProductRepository> _repositoryMock;
+    private readonly Mock<IRepository<Product>> _repositoryMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly UpdateProductCommand _command;
 
     public UpdateProductCommandTests()
     {
-        _repositoryMock = new Mock<IProductRepository>();
+        _repositoryMock = new Mock<IRepository<Product>>();
         _publisherMock = new Mock<IProductMessagePublisher>();
         _command = new UpdateProductCommand(_repositoryMock.Object, _publisherMock.Object);
     }
@@ -120,13 +121,13 @@ public class UpdateProductCommandTests
 
 public class DeleteProductCommandTests
 {
-    private readonly Mock<IProductRepository> _repositoryMock;
+    private readonly Mock<IRepository<Product>> _repositoryMock;
     private readonly Mock<IProductMessagePublisher> _publisherMock;
     private readonly DeleteProductCommand _command;
 
     public DeleteProductCommandTests()
     {
-        _repositoryMock = new Mock<IProductRepository>();
+        _repositoryMock = new Mock<IRepository<Product>>();
         _publisherMock = new Mock<IProductMessagePublisher>();
         _command = new DeleteProductCommand(_repositoryMock.Object, _publisherMock.Object);
     }

@@ -1,13 +1,13 @@
 using CrudCsharpPractice.Api.Features.Products.DTOs;
-using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
 namespace CrudCsharpPractice.Api.Features.Products.Queries;
 
 public class GetAllProductsQuery
 {
-    private readonly IProductRepository _repository;
+    private readonly IRepository<Product> _repository;
 
-    public GetAllProductsQuery(IProductRepository repository)
+    public GetAllProductsQuery(IRepository<Product> repository)
     {
         _repository = repository;
     }

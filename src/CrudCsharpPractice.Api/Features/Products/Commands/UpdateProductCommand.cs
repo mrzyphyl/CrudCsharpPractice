@@ -1,14 +1,15 @@
 using CrudCsharpPractice.Api.Features.Products.DTOs;
 using CrudCsharpPractice.Api.Features.Products.Services;
+using CrudCsharpPractice.Api.Features.Shared.DependencyInjection;
 
 namespace CrudCsharpPractice.Api.Features.Products.Commands;
 
 public class UpdateProductCommand
 {
-    private readonly IProductRepository _repository;
+    private readonly IRepository<Product> _repository;
     private readonly IProductMessagePublisher _messagePublisher;
 
-    public UpdateProductCommand(IProductRepository repository, IProductMessagePublisher messagePublisher)
+    public UpdateProductCommand(IRepository<Product> repository, IProductMessagePublisher messagePublisher)
     {
         _repository = repository;
         _messagePublisher = messagePublisher;
